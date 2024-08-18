@@ -1,33 +1,34 @@
-node('slave-1')
+node('slave1')
 {
-    def AWS_ACCOUNT_ID="851271747310"
+    def AWS_ACCOUNT_ID="339713180346"
     def AWS_REGION="us-east-2"
     def IMAGE_NAME="customer"
+    def GIT_BRANCH ="main"
     def REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_NAME}"
-    def GIT_URL = "https://github.com/naveen-uppala/Infra-App-Deployment.git"
+    def GIT_URL = "https://github.com/haripriya-tulasi/Infra-App-Deployment.git"
     def CHART_NAME ="customer"
-    def CLUSTER_NAME="batch18-eks-cluster"
+    def CLUSTER_NAME="batch19-cluster"
 
 try {     
     stage('Obtain Build Number') {
-        withCredentials([usernamePassword(credentialsId: 'jenkins_cred', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-            def buildNumber = sh(script: "curl -s -u ${USERNAME}:${PASSWORD} 'http://3.17.191.79:8080/job/HPM_CI/job/customer/lastSuccessfulBuild/buildNumber'", returnStdout: true).trim()
+        withCredentials([usernamePassword(credentialsId: 'jenkins_credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+            def buildNumber = sh(script: "curl -s -u ${USERNAME}:${PASSWORD} 'https://jenkins.hariaws.shop/job/HPM_CI/job/customer/lastSuccessfulBuild/buildNumber'", returnStdout: true).trim()
             env.buildNumber = buildNumber
             echo "The latest build number of HPM_CI is ${buildNumber}"
         }
     }
     
     stage("Cloning git repository") {
-        git branch: 'main', credentialsId: 'git_credentials', url: GIT_URL
+        git branch: GIT_BRANCH, credentialsId: 'git_credentials', url: GIT_URL
     }
      
     stage('K8S deploy') {
         withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws_credentials', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
         dir('App/Backend/') {
                     script {
-                        withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'kubeconfig_credentails', namespace: '', serverUrl: '') {
+                        withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'kubeconfig_credentials', namespace: '', serverUrl: '') {
                             sh "aws eks --region $AWS_REGION update-kubeconfig --name $CLUSTER_NAME"
-                            sh "helm upgrade release-${CHART_NAME} --install ${CHART_NAME} --set image.tag=${buildNumber}"
+                            sh "helm upgrade release-${CHART_NAME} --install ${CHART_NAME} --set image.tag=main-${buildNumber}"
                     }
                 }
             }
@@ -38,7 +39,7 @@ try {
         withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws_credentials', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
         dir('App/Backend/') {
                     script {
-                        withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'kubeconfig_credentails', namespace: '', serverUrl: '') {
+                        withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'kubeconfig_credentials', namespace: '', serverUrl: '') {
                             sh "kubectl apply -f Ingress/ingress.yaml"
                     }
                 }
@@ -51,7 +52,7 @@ try {
     finally {
             echo "Performing cleanup actions..."
             cleanWs()
-            // Scripted cleanup for directories
+             Scripted cleanup for directories
             dir("${env.WORKSPACE}@tmp") {
                 deleteDir()
             }
